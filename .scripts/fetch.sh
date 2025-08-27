@@ -1,94 +1,142 @@
 #!/bin/sh
-
 # Usage: fetch.sh TODAY_URL HISTORICAL_URL [YYYY-MM-DD]
 set -eu
 
-TODAY_URL="${1:-}"
-HISTORICAL_URL="${2:-}"
-INPUT_DATE="${3:-}"
-
-if [ -z "${TODAY_URL}" ] || [ -z "${HISTORICAL_URL}" ]; then
+usage() {
   echo "Usage: $0 TODAY_URL HISTORICAL_URL [YYYY-MM-DD]" >&2
+}
+
+die() {
+  echo "$@" >&2
   exit 1
-fi
+}
 
-# Determine current date in UTC and the effective date to use
-if TODAY_UTC="$(date -u +%Y-%m-%d 2>/dev/null)"; then
-  :
-else
-  TODAY_UTC="$(date -u +%Y-%m-%d)"
-fi
-DATE="${INPUT_DATE:-$TODAY_UTC}"
+log() {
+  echo "$@" >&2
+}
 
-# Precompute target path from requested date and skip if already present
-YEAR_DIR="$(echo "$DATE" | cut -d- -f1)"
-MONTH_DIR="$(echo "$DATE" | cut -d- -f2)"
-DAY_FILE="$(echo "$DATE" | cut -d- -f3)"
-if [ -z "$YEAR_DIR" ] || [ -z "$MONTH_DIR" ] || [ -z "$DAY_FILE" ]; then
-  echo "Invalid DATE format. Expected YYYY-MM-DD" >&2
-  exit 1
-fi
-TARGET_PRE="exchange/$YEAR_DIR/$MONTH_DIR/$DAY_FILE.json"
-if [ -f "$TARGET_PRE" ]; then
-  echo "Data for $YEAR_DIR/$MONTH_DIR/$DAY_FILE already exists at $TARGET_PRE. Skipping fetch."
-  exit 0
-fi
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "Required command '$1' not found in PATH"
+}
 
-# Choose the URL to fetch based on the date
-if [ "$DATE" = "$TODAY_UTC" ]; then
-  FETCH_URL="$TODAY_URL"
-else
-  # Build historical URL supporting {DATE} or %s placeholders; otherwise append date as query param
-  if echo "$HISTORICAL_URL" | grep -q '{DATE}'; then
-    FETCH_URL="$(printf "%s" "$HISTORICAL_URL" | sed "s/{DATE}/$DATE/g")"
-  elif echo "$HISTORICAL_URL" | grep -q '%s'; then
-    # shellcheck disable=SC2059
-    FETCH_URL="$(printf "$HISTORICAL_URL" "$DATE")"
+today_utc() {
+  date -u +%Y-%m-%d
+}
+
+# Build historical URL supporting {DATE} or %s placeholders; otherwise append date as query param
+build_historical_url() {
+  base="$1"
+  date_in="$2"
+  case "$base" in
+    *"{DATE}"*)
+      printf "%s" "$base" | sed "s/{DATE}/$date_in/g"
+      ;;
+    *"%s"*)
+      # shellcheck disable=SC2059
+      printf "$base" "$date_in"
+      ;;
+    *\?*)
+      printf "%s&date=%s" "$base" "$date_in"
+      ;;
+    *)
+      printf "%s?date=%s" "$base" "$date_in"
+      ;;
+  esac
+}
+
+# Convert UNIX timestamp to YYYY MM DD (UTC). Tries GNU date first, then BSD/macOS.
+ts_to_ymd() {
+  ts="$1"
+  if y="$(date -u -d "@$ts" +%Y 2>/dev/null)"; then
+    m="$(date -u -d "@$ts" +%m)"
+    d="$(date -u -d "@$ts" +%d)"
   else
-    if echo "$HISTORICAL_URL" | grep -q '?'; then
-      FETCH_URL="${HISTORICAL_URL}&date=${DATE}"
-    else
-      FETCH_URL="${HISTORICAL_URL}?date=${DATE}"
-    fi
+    y="$(date -u -r "$ts" +%Y)"
+    m="$(date -u -r "$ts" +%m)"
+    d="$(date -u -r "$ts" +%d)"
   fi
-fi
+  [ -n "$y" ] && [ -n "$m" ] && [ -n "$d" ] || die "Missing YEAR or MONTH or DAY"
+  printf "%s %s %s" "$y" "$m" "$d"
+}
 
-# Fetch data from the chosen URL
-if ! SOURCE_DATA="$(curl -fsSL "$FETCH_URL")"; then
-  echo "Failed to fetch data from ${FETCH_URL}" >&2
-  exit 1
-fi
-
-# Extract timestamp from response
-TIMESTAMP="$(echo "${SOURCE_DATA}" | jq -r '.timestamp')"
-if [ -z "$TIMESTAMP" ] || [ "$TIMESTAMP" = "null" ]; then
-  echo "Missing timestamp in response" >&2
-  exit 1
-fi
-
-# Compute date components from timestamp (UTC)
-# Try GNU date (-d) first; fall back to BSD/macOS date (-r)
-if YEAR="$(date -u -d "@$TIMESTAMP" +%Y 2>/dev/null)"; then
-  MONTH="$(date -u -d "@$TIMESTAMP" +%m)"
-  DAY="$(date -u -d "@$TIMESTAMP" +%d)"
-else
-  YEAR="$(date -u -r "$TIMESTAMP" +%Y)"
-  MONTH="$(date -u -r "$TIMESTAMP" +%m)"
-  DAY="$(date -u -r "$TIMESTAMP" +%d)"
-fi
-
-if [ -z "$YEAR" ] || [ -z "$MONTH" ] || [ -z "$DAY" ]; then
-  echo "Missing YEAR or MONTH or DAY" >&2
-  exit 1
-fi
-
-echo "Creating file for $YEAR/$MONTH/$DAY"
-
-# Prepare target path
-mkdir -p "$YEAR/$MONTH"
-TARGET="exchange/$YEAR/$MONTH/$DAY.json"
+fetch_json() {
+  url="$1"
+  curl -fsSL "$url" || return 1
+}
 
 # Transform the JSON to {from: <source>, to: {<CURRENCY>: rate, ...}}
-TRANSFORMED_DATA="$(echo "${SOURCE_DATA}" | jq '(.source) as $src | {from: $src, to: (.quotes | with_entries(.key |= ltrimstr($src)))}')"
+transform_quotes() {
+  jq '(.source) as $src | {from: $src, to: (.quotes | with_entries(.key |= ltrimstr($src)))}'
+}
 
-echo "$TRANSFORMED_DATA" > "$TARGET"
+main() {
+  TODAY_URL="${1:-}"
+  HISTORICAL_URL="${2:-}"
+  INPUT_DATE="${3:-}"
+
+  if [ -z "${TODAY_URL}" ] || [ -z "${HISTORICAL_URL}" ]; then
+    usage
+    exit 1
+  fi
+
+  # Verify required tools exist early
+  require_cmd curl
+  require_cmd jq
+  require_cmd date
+  require_cmd sed
+  require_cmd cut
+  require_cmd mkdir
+
+  # Determine current date in UTC and the effective date to use
+  TODAY_UTC="$(today_utc)"
+  DATE="${INPUT_DATE:-$TODAY_UTC}"
+
+  # Validate DATE format
+  case "$DATE" in
+    ????-??-??) : ;;
+    *) die "Invalid DATE format. Expected YYYY-MM-DD" ;;
+  esac
+
+  # Precompute target path from requested date and skip if already present
+  YEAR_DIR="$(echo "$DATE" | cut -d- -f1)"
+  MONTH_DIR="$(echo "$DATE" | cut -d- -f2)"
+  DAY_FILE="$(echo "$DATE" | cut -d- -f3)"
+  TARGET_PRE="exchange/$YEAR_DIR/$MONTH_DIR/$DAY_FILE.json"
+  if [ -f "$TARGET_PRE" ]; then
+    log "Data for $YEAR_DIR/$MONTH_DIR/$DAY_FILE already exists at $TARGET_PRE. Skipping fetch."
+    exit 0
+  fi
+
+  # Choose the URL to fetch based on the date
+  if [ "$DATE" = "$TODAY_UTC" ]; then
+    FETCH_URL="$TODAY_URL"
+  else
+    FETCH_URL="$(build_historical_url "$HISTORICAL_URL" "$DATE")"
+  fi
+
+  # Fetch data from the chosen URL
+  if ! SOURCE_DATA="$(fetch_json "$FETCH_URL")"; then
+    die "Failed to fetch data from ${FETCH_URL}"
+  fi
+
+  # Extract timestamp from response
+  TIMESTAMP="$(echo "${SOURCE_DATA}" | jq -r '.timestamp')"
+  [ -n "$TIMESTAMP" ] && [ "$TIMESTAMP" != "null" ] || die "Missing timestamp in response"
+
+  # Compute date components from timestamp (UTC)
+  set -- $(ts_to_ymd "$TIMESTAMP")
+  YEAR="$1"
+  MONTH="$2"
+  DAY="$3"
+
+  log "Creating file for $YEAR/$MONTH/$DAY"
+
+  # Prepare target path
+  mkdir -p "exchange/$YEAR/$MONTH"
+  TARGET="exchange/$YEAR/$MONTH/$DAY.json"
+
+  # Transform and write
+  echo "${SOURCE_DATA}" | transform_quotes > "$TARGET"
+}
+
+main "$@"
