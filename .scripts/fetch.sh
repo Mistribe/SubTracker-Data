@@ -163,6 +163,10 @@ main() {
   esac
 
   if [ "$MODE" = "day" ]; then
+    # Reject future date
+    if [ "$DATE" \> "$TODAY_UTC" ]; then
+      die "Requested date '$DATE' is in the future (today is $TODAY_UTC)"
+    fi
     process_date "$DATE"
     exit 0
   fi
@@ -170,7 +174,20 @@ main() {
   # Month mode
   Y="$(echo "$DATE" | cut -d- -f1)"
   M="$(echo "$DATE" | cut -d- -f2)"
-  last="$(days_in_month "$Y" "$M")"
+
+  # Reject future month
+  TY="$(echo "$TODAY_UTC" | cut -d- -f1)"
+  TM="$(echo "$TODAY_UTC" | cut -d- -f2)"
+  if [ "$Y-$M" \> "$TY-$TM" ]; then
+    die "Requested month '$Y-$M' is in the future (current month is $TY-$TM)"
+  fi
+
+  # Determine last day to fetch (truncate to today if current month)
+  if [ "$Y" = "$TY" ] && [ "$M" = "$TM" ]; then
+    last="$(echo "$TODAY_UTC" | cut -d- -f3)"
+  else
+    last="$(days_in_month "$Y" "$M")"
+  fi
 
   i=1
   while [ "$i" -le "$last" ]; do
