@@ -1,9 +1,9 @@
 #!/bin/sh
-# Usage: fetch.sh TODAY_URL HISTORICAL_URL [YYYY-MM-DD]
+# Usage: fetch.sh TODAY_URL HISTORICAL_URL [YYYY-MM or YYYY-MM-DD]
 set -eu
 
 usage() {
-  echo "Usage: $0 TODAY_URL HISTORICAL_URL [YYYY-MM-DD]" >&2
+  echo "Usage: $0 TODAY_URL HISTORICAL_URL [YYYY-MM or YYYY-MM-DD]" >&2
 }
 
 die() {
@@ -69,6 +69,70 @@ transform_quotes() {
   jq '(.source) as $src | {from: $src, to: (.quotes | with_entries(.key |= ltrimstr($src)))}'
 }
 
+# Leap year check
+is_leap() {
+  y="$1"
+  if [ $((y % 400)) -eq 0 ] || { [ $((y % 4)) -eq 0 ] && [ $((y % 100)) -ne 0 ]; }; then
+    return 0
+  fi
+  return 1
+}
+
+# Days in month (1-12), echoes 28..31
+days_in_month() {
+  y="$1"
+  m="$2"
+  case "$m" in
+    01|03|05|07|08|10|12) echo 31 ;;
+    04|06|09|11) echo 30 ;;
+    02)
+      if is_leap "$y"; then echo 29; else echo 28; fi
+      ;;
+    *)
+      die "Invalid month '$m'"
+      ;;
+  esac
+}
+
+# Process one YYYY-MM-DD date: skip existing, choose URL, fetch, transform, and write
+process_date() {
+  date_in="$1"
+  yreq="$(echo "$date_in" | cut -d- -f1)"
+  mreq="$(echo "$date_in" | cut -d- -f2)"
+  dreq="$(echo "$date_in" | cut -d- -f3)"
+  target_pre="exchange/$yreq/$mreq/$dreq.json"
+
+  if [ -f "$target_pre" ]; then
+    log "Data for $yreq/$mreq/$dreq already exists at $target_pre. Skipping fetch."
+    return 0
+  fi
+
+  if [ "$date_in" = "$TODAY_UTC" ]; then
+    fetch_url="$TODAY_URL"
+  else
+    fetch_url="$(build_historical_url "$HISTORICAL_URL" "$date_in")"
+  fi
+
+  if ! source_data="$(fetch_json "$fetch_url")"; then
+    die "Failed to fetch data from ${fetch_url}"
+  fi
+
+  timestamp="$(echo "${source_data}" | jq -r '.timestamp')"
+  [ -n "$timestamp" ] && [ "$timestamp" != "null" ] || die "Missing timestamp in response"
+
+  set -- $(ts_to_ymd "$timestamp")
+  y="$1"
+  m="$2"
+  d="$3"
+
+  log "Creating file for $y/$m/$d"
+
+  mkdir -p "exchange/$y/$m"
+  target="exchange/$y/$m/$d.json"
+
+  echo "${source_data}" | transform_quotes > "$target"
+}
+
 main() {
   TODAY_URL="${1:-}"
   HISTORICAL_URL="${2:-}"
@@ -91,52 +155,35 @@ main() {
   TODAY_UTC="$(today_utc)"
   DATE="${INPUT_DATE:-$TODAY_UTC}"
 
-  # Validate DATE format
+  # Validate DATE format (YYYY-MM or YYYY-MM-DD)
   case "$DATE" in
-    ????-??-??) : ;;
-    *) die "Invalid DATE format. Expected YYYY-MM-DD" ;;
+    ????-??-??) MODE="day" ;;
+    ????-??) MODE="month" ;;
+    *) die "Invalid DATE format. Expected YYYY-MM or YYYY-MM-DD" ;;
   esac
 
-  # Precompute target path from requested date and skip if already present
-  YEAR_DIR="$(echo "$DATE" | cut -d- -f1)"
-  MONTH_DIR="$(echo "$DATE" | cut -d- -f2)"
-  DAY_FILE="$(echo "$DATE" | cut -d- -f3)"
-  TARGET_PRE="exchange/$YEAR_DIR/$MONTH_DIR/$DAY_FILE.json"
-  if [ -f "$TARGET_PRE" ]; then
-    log "Data for $YEAR_DIR/$MONTH_DIR/$DAY_FILE already exists at $TARGET_PRE. Skipping fetch."
+  if [ "$MODE" = "day" ]; then
+    process_date "$DATE"
     exit 0
   fi
 
-  # Choose the URL to fetch based on the date
-  if [ "$DATE" = "$TODAY_UTC" ]; then
-    FETCH_URL="$TODAY_URL"
-  else
-    FETCH_URL="$(build_historical_url "$HISTORICAL_URL" "$DATE")"
-  fi
+  # Month mode
+  Y="$(echo "$DATE" | cut -d- -f1)"
+  M="$(echo "$DATE" | cut -d- -f2)"
+  last="$(days_in_month "$Y" "$M")"
 
-  # Fetch data from the chosen URL
-  if ! SOURCE_DATA="$(fetch_json "$FETCH_URL")"; then
-    die "Failed to fetch data from ${FETCH_URL}"
-  fi
-
-  # Extract timestamp from response
-  TIMESTAMP="$(echo "${SOURCE_DATA}" | jq -r '.timestamp')"
-  [ -n "$TIMESTAMP" ] && [ "$TIMESTAMP" != "null" ] || die "Missing timestamp in response"
-
-  # Compute date components from timestamp (UTC)
-  set -- $(ts_to_ymd "$TIMESTAMP")
-  YEAR="$1"
-  MONTH="$2"
-  DAY="$3"
-
-  log "Creating file for $YEAR/$MONTH/$DAY"
-
-  # Prepare target path
-  mkdir -p "exchange/$YEAR/$MONTH"
-  TARGET="exchange/$YEAR/$MONTH/$DAY.json"
-
-  # Transform and write
-  echo "${SOURCE_DATA}" | transform_quotes > "$TARGET"
+  i=1
+  while [ "$i" -le "$last" ]; do
+    D="$(printf "%02d" "$i")"
+    # Skip if already present; otherwise process the specific day
+    TARGET_PRE="exchange/$Y/$M/$D.json"
+    if [ -f "$TARGET_PRE" ]; then
+      log "Data for $Y/$M/$D already exists at $TARGET_PRE. Skipping fetch."
+    else
+      process_date "$Y-$M-$D"
+    fi
+    i=$((i + 1))
+  done
 }
 
 main "$@"
