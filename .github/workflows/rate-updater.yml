@@ -1,0 +1,60 @@
+name: Daily Example.com Fetch
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Runs every day at 01:00 UTC
+    - cron: "0 1 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure jq is installed
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y jq
+          fi
+
+      - name: Run fetch script
+        env:
+          TODAY_URL: ${{ secrets.RATE_TODAY_URL }}
+          HISTORICAL_URL: ${{ secrets.RATE_HISTORICAL_URL }}
+        run: |
+          set -euo pipefail
+          chmod +x .scripts/fetch.sh || true
+          ./.scripts/fetch.sh "$TODAY_URL" "$HISTORICAL_URL"
+
+      - name: Commit and push changes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet; then
+            echo "No changes to commit."
+          else
+            git add -A
+            # Choose a changed JSON file under exchange/ to derive the date
+            FILE_CHANGED="$(git status --porcelain | awk '/ exchange\/.*\.json$/ {print $2}' | head -n1)"
+            if [ -n "$FILE_CHANGED" ]; then
+              Y="$(echo "$FILE_CHANGED" | cut -d'/' -f2)"
+              M="$(echo "$FILE_CHANGED" | cut -d'/' -f3)"
+              D="$(basename "$FILE_CHANGED" .json)"
+              if [ -n "$Y" ] && [ -n "$M" ] && [ -n "$D" ]; then
+                git commit -m "chore: fetch rates for ${Y}-${M}-${D}"
+              else
+                git commit -m "chore: fetch rates"
+              fi
+            else
+              git commit -m "chore: fetch rates"
+            fi
+            git push
+          fi
