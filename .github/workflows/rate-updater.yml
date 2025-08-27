@@ -1,4 +1,4 @@
-name: Daily Example.com Fetch
+name: Daily exchange rate updater
 
 on:
   workflow_dispatch:
