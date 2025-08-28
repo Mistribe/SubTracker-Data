@@ -33,6 +33,7 @@ jobs:
           ./.scripts/fetch.sh "$TODAY_URL" "$HISTORICAL_URL"
 
       - name: Commit and push changes
+        if: github.ref_name == 'main'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
