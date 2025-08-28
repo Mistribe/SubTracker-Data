@@ -31,7 +31,6 @@ jobs:
           set -euo pipefail
           chmod +x .scripts/fetch.sh || true
           ./.scripts/fetch.sh "$TODAY_URL" "$HISTORICAL_URL"
-          git status
 
       - name: Commit and push changes
         run: |
@@ -39,8 +38,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git status
-          if git diff --quiet; then
+          # Include untracked files in the check
+          if [ -z "$(git status --porcelain)" ]; then
             echo "No changes to commit."
           else
             git add -A
