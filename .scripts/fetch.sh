@@ -132,6 +132,8 @@ process_date() {
   log "Creating file for $y/$m/$d named $target"
 
   echo "${source_data}" | transform_quotes > "$target"
+  ls -l "$target"
+  pwd
 }
 
 main() {
