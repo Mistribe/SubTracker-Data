@@ -125,12 +125,15 @@ process_date() {
   m="$2"
   d="$3"
 
-  log "Creating file for $y/$m/$d"
 
   mkdir -p "exchange/$y/$m"
   target="exchange/$y/$m/$d.json"
 
+  log "Creating file for $y/$m/$d named $target"
+
   echo "${source_data}" | transform_quotes > "$target"
+  ls -l "$target"
+  pwd
 }
 
 main() {

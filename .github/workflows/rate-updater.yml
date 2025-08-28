@@ -33,12 +33,14 @@ jobs:
           ./.scripts/fetch.sh "$TODAY_URL" "$HISTORICAL_URL"
 
       - name: Commit and push changes
+        if: github.ref_name == 'main'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet; then
+          # Include untracked files in the check
+          if [ -z "$(git status --porcelain)" ]; then
             echo "No changes to commit."
           else
             git add -A
