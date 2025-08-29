@@ -1,0 +1,16 @@
+{
+    "json.schemas": [
+        {
+            "fileMatch": [
+                "providers.json"
+            ],
+            "url": "./schemas/providersSchema.json"
+        },
+        {
+            "fileMatch": [
+                "labels.json"
+            ],
+            "url": "./schemas/labelsSchema.json"
+        }
+    ]
+}

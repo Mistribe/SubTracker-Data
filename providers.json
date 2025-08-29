@@ -227,7 +227,7 @@
     "key": "ovh-cloud",
     "website": "https://www.ovh.com/",
     "pricing_page": "https://www.ovh.com/fr/public-cloud/",
-    "icon": "https://en.wikipedia.org/wiki/OVHcloud#/media/File:Logo-OVH.svg",
+    "icon": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Logo-OVH.svg/2560px-Logo-OVH.svg.png",
     "categories": [
       "hosting",
       "cloud"
@@ -239,8 +239,18 @@
     "categories": [
       "gaming"
     ],
-    "icon": "https://1000logos.net/wp-content/uploads/2022/11/World-of-Warcraft-Logo-2001-768x512.png",
-    "pricing_page": "https://eu.shop.battle.net/en-us/product/world-of-warcraft-subscription",
-    "website": "https://worldofwarcraft.blizzard.com/"
+    "icon": "https://upload.wikimedia.org/wikipedia/en/a/a8/Battlenet-logo.png",
+    "pricing_page": "https://eu.shop.battle.net/en-us",
+    "website": "https://battle.net/"
+  },
+  {
+    "name": "Github",
+    "key": "github",
+    "categories": [
+      "work"
+    ],
+    "icon": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/GitHub_Invertocat_Logo.svg/1920px-GitHub_Invertocat_Logo.svg.png",
+    "website": "https://www.github.com",
+    "pricing_page": "https://github.com/pricing"
   }
 ]
