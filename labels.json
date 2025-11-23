@@ -83,5 +83,16 @@
     "key": "kid",
     "name": "Kid",
     "color": "#FFa855b4"
+  },
+  {
+    "key": "insurance",
+    "name": "Insurance",
+    "color": "#FF64B5F6"
+  },
+  { 
+    "key": "car",
+    "name": "Car",
+    "color": "#FF64B5F6"
   }
+  
 ]

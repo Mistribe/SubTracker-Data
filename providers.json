@@ -252,5 +252,23 @@
     "icon": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/GitHub_Invertocat_Logo.svg/1920px-GitHub_Invertocat_Logo.svg.png",
     "website": "https://www.github.com",
     "pricing_page": "https://github.com/pricing"
+  },
+  {
+    "name": "Car insurance",
+    "key": "car-insurance",
+    "categories": [
+      "insurance",
+      "car"
+    ],
+    "icon": "https://raw.githubusercontent.com/Mistribe/SubTracker-Data/refs/heads/main/assets/car-insurance.webp"
+  },
+  {
+    "name": "Hoeme insurance",
+    "key": "home-insurance",
+    "categories": [
+      "insurance",
+      "home"
+    ],
+    "icon": "https://raw.githubusercontent.com/Mistribe/SubTracker-Data/refs/heads/main/assets/home-insurance.webp"
   }
 ]

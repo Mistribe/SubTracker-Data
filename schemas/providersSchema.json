@@ -8,8 +8,6 @@
     "required": [
       "name",
       "key",
-      "website",
-      "pricing_page",
       "icon",
       "categories"
     ],
@@ -57,7 +55,10 @@
             "kid",
             "cloud",
             "hosting",
-            "gaming"
+            "gaming",
+            "insurance",
+            "car",
+            "home"
           ]
         },
         "minItems": 1
