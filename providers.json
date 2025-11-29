@@ -263,7 +263,7 @@
     "icon": "https://raw.githubusercontent.com/Mistribe/SubTracker-Data/refs/heads/main/assets/car-insurance.webp"
   },
   {
-    "name": "Hoeme insurance",
+    "name": "Home insurance",
     "key": "home-insurance",
     "categories": [
       "insurance",
