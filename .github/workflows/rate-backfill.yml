@@ -1,0 +1,73 @@
+name: Monthly historical rate backfill
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Candidate last-day-of-month runs, at 03:00 UTC (after the daily 01:00 job).
+    # The "Only proceed on last day of month" step skips all but the true last day.
+    - cron: "0 3 28-31 * *"
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Only proceed on last day of month
+        id: lastday
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [ "$(date -u -d tomorrow +%d)" = "01" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure jq is installed
+        if: steps.lastday.outputs.run == 'true'
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y jq
+          fi
+
+      - name: Run backfill script
+        if: steps.lastday.outputs.run == 'true'
+        env:
+          TODAY_URL: ${{ secrets.RATE_TODAY_URL }}
+          HISTORICAL_URL: ${{ secrets.RATE_HISTORICAL_URL }}
+        run: |
+          set -euo pipefail
+          chmod +x .scripts/backfill.sh .scripts/fetch.sh || true
+          ./.scripts/backfill.sh "$TODAY_URL" "$HISTORICAL_URL" 60
+
+      - name: Commit and push changes
+        if: steps.lastday.outputs.run == 'true' && github.ref_name == 'main'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit."
+          else
+            git add -A
+            # Derive the oldest/newest changed dates under exchange/ for the commit message
+            CHANGED_FILES="$(git status --porcelain | awk '/ exchange\/.*\.json$/ {print $2}' | sort)"
+            OLDEST_FILE="$(echo "$CHANGED_FILES" | head -n1)"
+            NEWEST_FILE="$(echo "$CHANGED_FILES" | tail -n1)"
+            if [ -n "$OLDEST_FILE" ] && [ -n "$NEWEST_FILE" ]; then
+              OY="$(echo "$OLDEST_FILE" | cut -d'/' -f2)"; OM="$(echo "$OLDEST_FILE" | cut -d'/' -f3)"; OD="$(basename "$OLDEST_FILE" .json)"
+              NY="$(echo "$NEWEST_FILE" | cut -d'/' -f2)"; NM="$(echo "$NEWEST_FILE" | cut -d'/' -f3)"; ND="$(basename "$NEWEST_FILE" .json)"
+              git commit -m "chore: backfill rates for ${OY}-${OM}-${OD}..${NY}-${NM}-${ND}"
+            else
+              git commit -m "chore: backfill rates"
+            fi
+            git push
+          fi
