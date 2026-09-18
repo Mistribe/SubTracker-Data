@@ -78,6 +78,8 @@ main() {
     fi
 
     i=$((i + 1))
+    # Throttle requests to avoid tripping the historical rate API's rate limit.
+    [ "$i" -le "$COUNT" ] && sleep 2
   done
 
   if [ "$fetched_any" -eq 1 ]; then

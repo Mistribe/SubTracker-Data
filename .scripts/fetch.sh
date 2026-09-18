@@ -61,7 +61,9 @@ ts_to_ymd() {
 
 fetch_json() {
   url="$1"
-  curl -fsSL "$url" || return 1
+  # --retry-all-errors covers rate-limit responses (e.g. 429) in addition to
+  # curl's default transient-error set; without it a 429 fails immediately.
+  curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors "$url" || return 1
 }
 
 # Transform the JSON to {from: <source>, to: {<CURRENCY>: rate, ...}}
