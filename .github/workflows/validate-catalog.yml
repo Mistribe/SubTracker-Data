@@ -1,0 +1,41 @@
+name: Validate providers and labels
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "providers.json"
+      - "labels.json"
+      - "schemas/**"
+      - ".scripts/validate.py"
+      - ".github/workflows/validate-catalog.yml"
+  push:
+    branches: [main]
+    paths:
+      - "providers.json"
+      - "labels.json"
+      - "schemas/**"
+      - ".scripts/validate.py"
+      - ".github/workflows/validate-catalog.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install jsonschema
+        run: pip install "jsonschema[format-nongpl]"
+
+      # Schemas, unique keys, and every provider category defined in labels.json.
+      - name: Validate
+        run: python .scripts/validate.py

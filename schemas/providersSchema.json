@@ -11,57 +11,50 @@
       "icon",
       "categories"
     ],
+    "additionalProperties": false,
     "properties": {
       "name": {
         "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
         "description": "Display name of the provider"
       },
       "key": {
         "type": "string",
-        "description": "Unique identifier key for the provider"
+        "pattern": "^[a-z0-9][a-z0-9-]*$",
+        "maxLength": 64,
+        "description": "Unique identifier key for the provider (uniqueness is checked by .scripts/validate.py)"
       },
       "website": {
         "type": "string",
         "format": "uri",
+        "pattern": "^https?://",
+        "maxLength": 2048,
         "description": "Main website URL of the provider"
       },
       "pricing_page": {
         "type": "string",
         "format": "uri",
+        "pattern": "^https?://",
+        "maxLength": 2048,
         "description": "URL to the provider's pricing page"
       },
       "icon": {
         "type": "string",
         "format": "uri",
+        "pattern": "^https://",
+        "maxLength": 2048,
         "description": "URL to the provider's icon/logo"
       },
       "categories": {
         "type": "array",
-        "description": "List of categories this provider belongs to",
+        "description": "Label keys this provider belongs to; each must exist in labels.json (checked by .scripts/validate.py)",
         "items": {
           "type": "string",
-          "enum": [
-            "streaming",
-            "utilities",
-            "vpn",
-            "vod",
-            "streaming-music",
-            "streaming-video",
-            "shopping",
-            "storage",
-            "internet",
-            "mobile",
-            "work",
-            "kid",
-            "cloud",
-            "hosting",
-            "gaming",
-            "insurance",
-            "car",
-            "home"
-          ]
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
         },
-        "minItems": 1
+        "minItems": 1,
+        "uniqueItems": true
       },
       "plans": {
         "type": "array",
