@@ -6,16 +6,20 @@
         "properties": {
             "key": {
                 "type": "string",
-                "description": "A unique identifier for the label."
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "maxLength": 64,
+                "description": "A unique identifier for the label (uniqueness is checked by .scripts/validate.py)."
             },
             "name": {
                 "type": "string",
+                "minLength": 1,
+                "maxLength": 50,
                 "description": "The display name of the label."
             },
             "color": {
                 "type": "string",
-                "pattern": "^#FF[0-9A-Fa-f]{6}$",
-                "description": "The color code of the label in ARGB format."
+                "pattern": "^#[0-9A-Fa-f]{6}$",
+                "description": "The colour of the label as a CSS hex colour (#RRGGBB)."
             }
         },
         "required": [
