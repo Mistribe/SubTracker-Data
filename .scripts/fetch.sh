@@ -122,11 +122,21 @@ process_date() {
   timestamp="$(echo "${source_data}" | jq -r '.timestamp')"
   [ -n "$timestamp" ] && [ "$timestamp" != "null" ] || die "Missing timestamp in response"
 
-  set -- $(ts_to_ymd "$timestamp")
-  y="$1"
-  m="$2"
-  d="$3"
+  # Historical responses carry a "date" field; their timestamp is sometimes wrong
+  # (years off, or the previous day on weekends). The live response has no "date",
+  # so fall back to the timestamp.
+  resp_date="$(echo "${source_data}" | jq -r '.date // empty')"
+  if [ -z "$resp_date" ]; then
+    set -- $(ts_to_ymd "$timestamp")
+    resp_date="$1-$2-$3"
+  fi
 
+  # Never file a response under another day: it would overwrite that day's data.
+  [ "$resp_date" = "$date_in" ] || die "Response for $date_in is dated $resp_date (timestamp $timestamp); refusing to write it"
+
+  y="$(echo "$date_in" | cut -d- -f1)"
+  m="$(echo "$date_in" | cut -d- -f2)"
+  d="$(echo "$date_in" | cut -d- -f3)"
 
   mkdir -p "exchange/$y/$m"
   target="exchange/$y/$m/$d.json"
