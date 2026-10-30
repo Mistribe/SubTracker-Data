@@ -56,6 +56,15 @@
         "minItems": 1,
         "uniqueItems": true
       },
+      "includes": {
+        "type": "array",
+        "description": "Keys of the providers included in every plan of this bundle",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "uniqueItems": true
+      },
       "plans": {
         "type": "array",
         "description": "Available subscription plans for this provider",
